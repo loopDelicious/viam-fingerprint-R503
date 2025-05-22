@@ -1,0 +1,8 @@
+
+viam-sdk==0.46.0
+
+typing-extensions
+
+pyserial
+adafruit-circuitpython-fingerprint
+Pillow
