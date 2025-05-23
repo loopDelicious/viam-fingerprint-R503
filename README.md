@@ -34,50 +34,101 @@ The following attributes are available for this model:
 
 ### DoCommand
 
-An example payload of each command that is supported and the arguments that can be used.
+This module supports several commands for fingerprint enrollment, matching, template management, and LED testing. Each command can be triggered using a **DO COMMAND** request with a corresponding JSON payload, under the **CONTROL** tab of the Viam app.
+
+Below are all supported payloads and their usage.
 
 #### Example DoCommand
 
-```json
-{ "reset_enrollment": true }
-```
+The enrollment process captures two fingerprint scans and stores them to a slot in memory.
 
-Begin enrollment process (to capture two scans of fingerprint). This library is designed to work with two scans per enrollment slot (slot `1` shown here). You can optionally add more slots to enroll variations of the same print for higher reliability in finding a match, for example by scanning the edges of the fingerprint in subsequent enrollment slots.
+**Start enrollment**:
 
 ```json
 { "start_enrollment": 1 }
 ```
 
-Hold the finger on the sensor, and scan the first print.
+Begins enrollment for slot `1`. Replace `1` with any unused slot number. The sensor will now wait for fingerprint scans.
+
+**Capture scans**:
 
 ```json
 { "capture": true }
 ```
 
-Hold the finger on the sensor, and scan the second print. Retry this step until two successful scans are completed.
+Call this twice:
 
-```json
-{ "capture": true }
-```
+1. First with finger pressed on the sensor.
+1. Then remove and re-place the same finger for the second scan.
 
-Retry the previous step until two successful scans are completed. Then create a new model.
+If there’s an issue (e.g. misaligned finger), repeat this step. The enrollment state tracks progress automatically.
+
+**Create fingerprint model**:
 
 ```json
 { "create_model": true }
 ```
 
-Upon successfully creating a model, store the model using the enrollment slot defined earlier (slot `1` shown here).
+Attempts to create a model from the two captured scans. If the prints don't match, it will prompt to retry the second scan (capture again).
+
+**Store model**:
 
 ```json
 { "store_model": 1 }
 ```
 
-Other example DoCommands include:
+Stores the created model in slot `1` (or the slot used in start_enrollment). You can enroll the same fingerprint multiple times in different slots to improve match reliability under varying finger angles or pressure.
+
+**Reset enrollment state**:
+
+```json
+{ "reset_enrollment": true }
+```
+
+Clears the current enrollment process. Useful for recovering from a bad scan sequence.
+
+**Match fingerprint**:
 
 ```json
 { "match_fingerprint": true }
 ```
 
+Attempts to read and match a fingerprint against the enrolled models.
+
+**Delete a template**:
+
+```json
+{ "delete_model": 1 }
+```
+
+Deletes the fingerprint stored in slot `1`.
+
+**List enrolled templates**:
+
+```json
+{ "list_templates": true }
+```
+
+Returns the list of currently enrolled slot numbers.
+
+**Count enrolled templates**:
+
+```json
+{ "count_templates": true }
+```
+
+Returns the total number of templates stored on the sensor.
+
+**Test the LED**:
+
 ```json
 { "test_led": true }
 ```
+
+Turns on the LED in test mode.
+
+```json
+{ "test_led": false }
+```
+
+Turns off the LED.
