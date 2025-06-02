@@ -6,6 +6,7 @@ from PIL import Image
 import adafruit_fingerprint
 import glob
 import os
+import asyncio
 
 from typing_extensions import Self
 from viam.components.sensor import *
@@ -28,6 +29,7 @@ class AdafruitR503(Sensor, EasyResource):
     ) -> Self:
         instance = super().new(config, dependencies)
         instance._reset_enrollment_state()
+        instance.reading_lock = asyncio.Lock()
         return instance
 
     @classmethod
@@ -158,50 +160,51 @@ class AdafruitR503(Sensor, EasyResource):
         timeout: Optional[float] = None,
         **kwargs
     ) -> Mapping[str, Any]:
-        self.logger.debug("Getting readings from the sensor")
-        self._ensure_finger_initialized()
+        async with self.reading_lock:
+            self.logger.debug("Getting readings from the sensor")
+            self._ensure_finger_initialized()
 
-        # Flash purple breathing to show sensor startup
-        if not hasattr(self, "_did_purple_breathe"):
-            self.finger.set_led(color=3, mode=1)
-            time.sleep(3)
-            self.finger.set_led(color=1, mode=4)
-            self._did_purple_breathe = True
+            # Flash purple breathing to show sensor startup
+            if not hasattr(self, "_did_purple_breathe"):
+                self.finger.set_led(color=3, mode=1)
+                time.sleep(3)
+                self.finger.set_led(color=1, mode=4)
+                self._did_purple_breathe = True
 
-        try:
-            # Step 1: Check for finger
-            i = self.finger.get_image()
-            if i != adafruit_fingerprint.OK:
-                self.finger.set_led(color=0, mode=4)  # LED off
-                return {"finger_detected": False}
+            try:
+                # Step 1: Check for finger
+                i = self.finger.get_image()
+                if i != adafruit_fingerprint.OK:
+                    self.finger.set_led(color=0, mode=4)  # LED off
+                    return {"finger_detected": False}
 
-            # Step 2: Convert image to template
-            i = self.finger.image_2_tz(1)
-            if i != adafruit_fingerprint.OK:
-                self.finger.set_led(color=1, mode=2, speed=100)  # Red flash on bad template
-                return {"finger_detected": True, "matched": False}
+                # Step 2: Convert image to template
+                i = self.finger.image_2_tz(1)
+                if i != adafruit_fingerprint.OK:
+                    self.finger.set_led(color=1, mode=2, speed=100)  # Red flash on bad template
+                    return {"finger_detected": True, "matched": False}
 
-            # Step 3: Search for match
-            i = self.finger.finger_search()
-            if i != adafruit_fingerprint.OK:
-                self.finger.set_led(color=1, mode=2, speed=100)  # Red flash
-                return {"finger_detected": True, "matched": False}
+                # Step 3: Search for match
+                i = self.finger.finger_search()
+                if i != adafruit_fingerprint.OK:
+                    self.finger.set_led(color=1, mode=2, speed=100)  # Red flash
+                    return {"finger_detected": True, "matched": False}
 
-            # Step 4: Show match with green (or blue/purple) flash
-            self.finger.set_led(color=2, mode=2, speed=100)  # Blue flash
-            return {
-                "finger_detected": True,
-                "matched": True,
-                "matched_id": int(self.finger.finger_id),
-                "confidence": int(self.finger.confidence),
-            }
+                # Step 4: Show match with green (or blue/purple) flash
+                self.finger.set_led(color=2, mode=2, speed=100)  # Blue flash
+                return {
+                    "finger_detected": True,
+                    "matched": True,
+                    "matched_id": int(self.finger.finger_id),
+                    "confidence": int(self.finger.confidence),
+                }
 
-        except Exception as e:
-            self.logger.error(f"Fingerprint error: {str(e)}")
-            return {
-                "finger_detected": False,
-                "error": str(e)
-            }
+            except Exception as e:
+                self.logger.error(f"Fingerprint error: {str(e)}")
+                return {
+                    "finger_detected": False,
+                    "error": str(e)
+                }
 
     def _reset_enrollment_state(self):
         """Reset enrollment tracking variables."""
